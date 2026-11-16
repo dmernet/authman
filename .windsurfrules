@@ -1,0 +1,23 @@
+# Windsurf Rules — AuthMan
+
+## 本地运行（无需 Docker）
+
+```bash
+python .agents/skills/authman-local-run/scripts/authman_ctl.py serve --port 8000      # 后台执行；端口占用自动顺延
+python .agents/skills/authman-local-run/scripts/authman_ctl.py status --port 8000
+python .agents/skills/authman-local-run/scripts/authman_ctl.py stop --port 8000
+```
+
+## Docker
+
+```bash
+docker build --target deps -t authman-deps:latest .
+docker build -t authman:latest .
+```
+
+## 约束
+
+- 不修改业务代码适配本地运行，差异只通过 `DB_PATH` 处理。
+- `/admin` 无认证，禁止公网暴露；`data/tokens.db` 禁止提交。
+
+完整技能文档：`.agents/skills/authman-local-run/SKILL.md`。

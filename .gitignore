@@ -1,0 +1,11 @@
+.venv/
+.runtime/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+data/*.log
+data/logs/
+data/*.db
+.workbuddy/memory/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,101 @@
+---
+name: authman-local-run
+description: Run, debug, start, stop or inspect the AuthMan FastAPI token-management service locally without Docker. Use when the user asks to 本地启动 AuthMan / 不用 Docker 运行 / 调试接口 / 启动服务 / 查端口 / 停止服务, or when an agent needs a one-command local launch. Prepares a virtual environment, installs requirements, injects DB_PATH, and serves uvicorn on a free port.
+license: MIT
+---
+
+# AuthMan 本地运行（免 Docker）
+
+## 用途
+
+在不使用 Docker 的情况下运行项目根目录中的 AuthMan 服务（`main.py`）。脚本自动完成：定位项目根目录 → 创建/复用 `.venv` → 安装 `requirements.txt` → 注入 `DB_PATH` → 启动 uvicorn。
+
+## 何时使用
+
+- 用户要求「本地启动 AuthMan」「不用 Docker 跑一下」「调试接口 / 后台」。
+- agent 需要快速验证服务是否可用、查端口、停止服务。
+- 用户没有 Docker 或不想构建镜像。
+
+## 关键路径
+
+- 控制器脚本：`scripts/authman_ctl.py`（相对本 skill 根目录）。
+- 项目根目录：默认从脚本位置向上自动查找 `main.py` + `requirements.txt` + `app/`；找不到时用 `--repo` 或环境变量 `AUTHMAN_PROJECT_DIR` 指定。
+- 默认虚拟环境：`<项目根>/.venv`；默认数据库：`<项目根>/data/tokens.db`（通过 `DB_PATH` 注入，Docker 仍用 `/data/tokens.db`）。
+
+## 获取项目代码
+
+本 skill 只含运行指南，**不含项目代码**。在仓库外使用前先：
+
+```bash
+git clone <仓库地址> && cd <仓库目录>
+```
+
+脚本会从自身位置向上查找 `main.py`，在 clone 出来的仓库里运行时能自动定位；若 skill 被安装在其他位置，用 `--repo "<仓库路径>"` 或环境变量 `AUTHMAN_PROJECT_DIR` 指定。
+
+## 工作流
+
+### 1. 启动服务
+
+**agent 必须用后台任务方式执行** `serve`（该命令前台常驻）：
+
+```bash
+python scripts/authman_ctl.py serve --port 8000
+```
+
+- 端口被占用时自动顺延到下一个可用端口，实际地址写在 stderr 的 `AuthMan 启动中: http://...` 中；也可 `--port 0` 自动分配。
+- 如需指定项目目录：`--repo "D:/261014_AuthMan"`。
+- 启动后从输出中读取实际端口，向用户回报 `http://127.0.0.1:<port>/docs` 和 `/admin`。服务默认监听 `0.0.0.0`，本机用 `127.0.0.1` 访问即可。
+
+**终端用户**可直接运行同一命令，Ctrl+C 停止。
+
+### 2. 验证服务
+
+```bash
+python scripts/authman_ctl.py status --port 8000
+curl http://127.0.0.1:8000/get
+```
+
+`status` 返回 JSON，包含 `status`、`url`、`docs_url`、`admin_url`、`pids`、`db_path`。也可用 `/openapi.json` 做健康检查。
+
+### 3. 停止服务
+
+```bash
+python scripts/authman_ctl.py stop --port 8000
+```
+
+按监听端口查找并结束进程；agent 也可用自身的任务停止能力终止后台任务。
+
+### 4. 只准备环境（不启动）
+
+```bash
+python scripts/authman_ctl.py prepare
+```
+
+返回虚拟环境解释器路径、数据库路径和可直接运行的服务命令。适合用户想在自己的终端里手动启动。
+
+## 命令与参数
+
+| 命令 | 作用 |
+|------|------|
+| `prepare` | 创建 venv、安装依赖，打印运行命令（JSON） |
+| `serve` | 前台运行服务；端口占用自动顺延 |
+| `status` | 检查健康状态、端口、监听 PID（JSON） |
+| `stop` | 按端口停止服务（JSON） |
+
+常用参数：`--port`、`--host`、`--repo`、`--venv`、`--python`、`--mirror`、`--no-install`。
+
+环境变量：`AUTHMAN_PROJECT_DIR`（项目根）、`AUTHMAN_PORT`、`AUTHMAN_HOST`、`AUTHMAN_PYTHON`、`DB_PATH`、`PIP_INDEX_URL`。
+
+## 注意事项
+
+- 默认监听 `0.0.0.0`（所有网卡），端口默认 8000，占用时自动向上查找可用端口；可用 `--host` 或 `AUTHMAN_HOST` 覆盖监听地址。
+- 后台管理页 `/admin` 当前使用 `NoAuthBackend`（不校验身份）。由于默认监听所有网卡，局域网内其他设备可直接访问，**务必只在可信网络使用**；如需对外暴露，先加认证或置于反向代理之后。
+- pip 默认使用阿里云源，失败时自动回退 PyPI；离线环境可先装好依赖再用 `--no-install`。
+- 依赖变更时重新运行 `prepare` 或 `serve`，脚本会按 `requirements.txt` 内容哈希重新安装。
+- 不要修改业务代码来适配本地运行：本地与 Docker 的差异只通过 `DB_PATH` 环境变量处理。
+- Docker 构建保持可用，本地生成的 `.venv` / `.runtime` 已由 `.dockerignore` 排除。
+
+## 资源
+
+- `scripts/authman_ctl.py`：跨平台的本地运行控制器（Windows / macOS / Linux）。
+- `references/api.md`：接口、环境变量、平台 key 与故障排查参考。
